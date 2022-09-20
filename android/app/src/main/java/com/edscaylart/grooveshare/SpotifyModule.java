@@ -3,7 +3,10 @@ import android.app.Activity;
 import android.content.Intent;
 import android.util.Log;
 
+import androidx.annotation.Nullable;
+
 import com.facebook.react.bridge.ActivityEventListener;
+import com.facebook.react.bridge.Arguments;
 import com.facebook.react.bridge.BaseActivityEventListener;
 import com.facebook.react.bridge.NativeModule;
 import com.facebook.react.bridge.Promise;
@@ -13,22 +16,30 @@ import com.facebook.react.bridge.ReactContextBaseJavaModule;
 import com.facebook.react.bridge.ReactMethod;
 import java.util.Map;
 import java.util.HashMap;
+
+import com.facebook.react.bridge.WritableMap;
+import com.facebook.react.modules.core.DeviceEventManagerModule;
+import com.spotify.android.appremote.api.ConnectionParams;
+import com.spotify.android.appremote.api.Connector;
+import com.spotify.android.appremote.api.SpotifyAppRemote;
+import com.spotify.protocol.types.Track;
 import com.spotify.sdk.android.auth.AuthorizationClient;
 import com.spotify.sdk.android.auth.AuthorizationRequest;
 import com.spotify.sdk.android.auth.AuthorizationResponse;
 
 public class SpotifyModule extends ReactContextBaseJavaModule {
 
-    private static final String CLIENT_ID = "5aae8924e4e141489fe54a5761679e4e";
-    private static final String REDIRECT_URI = "com.edscaylart.groove_share://callback";
+    private static final String CLIENT_ID = "4dbd5f3c0dfc47369a00f42370b9199a";
+    private static final String REDIRECT_URI = "com.edscaylart.grooveshare://callback";
     private static final int REQUEST_CODE = 1337;
-    private static final String SCOPES = "user-read-recently-played,user-library-modify,user-library-read,playlist-modify-public,playlist-modify-private,user-read-email,user-read-private,user-read-birthdate,playlist-read-private,playlist-read-collaborative";
+    private static final String SCOPES = "user-read-recently-played,user-library-modify,user-library-read,playlist-modify-public,playlist-modify-private,user-read-email,user-read-private,playlist-read-private,playlist-read-collaborative";
 
     private static final String E_ACTIVITY_DOES_NOT_EXIST = "E_ACTIVITY_DOES_NOT_EXIST";
     private static final String E_FAILED_TO_AUTHENTICATE = "E_FAILED_TO_AUTHENTICATE";
-
+    private static final String E_SPOTIFY_CONNECTION = "E_SPOTIFY_CONNECTION";
 
     private Promise mAuthPromise;
+    private SpotifyAppRemote mSpotifyAppRemote;
 
     private final ActivityEventListener mActivityEventListener = new BaseActivityEventListener() {
         @Override
@@ -51,7 +62,7 @@ public class SpotifyModule extends ReactContextBaseJavaModule {
                     // Auth flow returned an error
                     case ERROR:
                         // Handle error response
-                        mAuthPromise.reject(E_FAILED_TO_AUTHENTICATE, "Spotify Authentication Failed");
+                        mAuthPromise.reject(E_FAILED_TO_AUTHENTICATE, response.getError());
                         break;
 
                     // Most likely auth flow was cancelled
@@ -74,10 +85,22 @@ public class SpotifyModule extends ReactContextBaseJavaModule {
         return "SpotifyModule";
     }
 
+    private void sendEvent(ReactContext reactContext, String eventName, @Nullable WritableMap params) {
+        reactContext
+                .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class)
+                .emit(eventName, params);
+    }
+
     @ReactMethod
-    public void createSpotifyEvent(String name, String location) {
-        Log.d("CalendarModule", "Create event called with name: " + name
-                + " and location: " + location);
+    public void addListener(String eventName) {
+        // Set up any upstream listeners or background tasks as necessary
+        this.subscribeToPlayerState();
+    }
+
+    @ReactMethod
+    public void removeListeners(Integer count) {
+        // Remove upstream listeners, stop unnecessary background tasks
+        this.unsubscribeToPlayerState();
     }
 
     @ReactMethod
@@ -94,5 +117,58 @@ public class SpotifyModule extends ReactContextBaseJavaModule {
         builder.setScopes(new String[]{SCOPES});
         AuthorizationRequest request = builder.build();
         AuthorizationClient.openLoginActivity(getCurrentActivity(), REQUEST_CODE, request);
+    }
+
+    @ReactMethod
+    public void subscribeToPlayerState() {
+        Activity currentActivity = getCurrentActivity();
+
+        ConnectionParams connectionParams = new ConnectionParams.Builder(CLIENT_ID)
+                .setRedirectUri(REDIRECT_URI)
+                .showAuthView(true)
+                .build();
+
+        SpotifyAppRemote.connect(currentActivity, connectionParams,
+                new Connector.ConnectionListener() {
+
+                    @Override
+                    public void onConnected(SpotifyAppRemote spotifyAppRemote) {
+                        mSpotifyAppRemote = spotifyAppRemote;
+                        Log.d("SpotifyModule", "Connected! Yay!");
+
+                        // Now you can start interacting with App Remote
+                        connected();
+                    }
+
+                    @Override
+                    public void onFailure(Throwable throwable) {
+                        Log.e(E_SPOTIFY_CONNECTION, throwable.getMessage(), throwable);
+                        // Something went wrong when attempting to connect! Handle errors here
+                    }
+                });
+    }
+
+    @ReactMethod
+    public void unsubscribeToPlayerState() {
+        SpotifyAppRemote.disconnect(mSpotifyAppRemote);
+    }
+
+
+    private void connected() {
+        mSpotifyAppRemote.getPlayerApi()
+                .subscribeToPlayerState()
+                .setEventCallback(playerState -> {
+                    final Track track = playerState.track;
+                    if (track != null) {
+
+                        WritableMap params = Arguments.createMap();
+                        params.putString("song", track.name);
+                        params.putString("artist", track.artist.name);
+                        params.putString("imageUri", track.imageUri.toString());
+
+                        sendEvent(getReactApplicationContext(), "PlayerState", params);
+                        Log.d("MainActivity", track.name + " by " + track.artist.name);
+                    }
+                });
     }
 }
