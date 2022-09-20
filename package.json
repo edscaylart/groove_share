@@ -2,6 +2,7 @@
   "name": "groove_share",
   "version": "1.0.0",
   "scripts": {
+    "start:cli": "npx react-native start",
     "start": "expo start --dev-client",
     "android": "expo run:android",
     "ios": "expo run:ios",

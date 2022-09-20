@@ -2,15 +2,27 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Spotify } from './src/libs';
+import { Spotify, SpotifyEventListener } from './src/libs';
 
 export default function App() {
 
   async function authenticate() {
-    const token = await Spotify.authenticate();
+    try {
+      const token = await Spotify.authenticate();
 
-    console.log('Recebido o token no JS', token)
+      console.log('Recebido o token no JS', token)
+    } catch (err) {
+      console.log(err)
+    }
   }
+
+  useEffect(() => {
+    const playerListener = SpotifyEventListener().addListener('PlayerState', (event) => {
+      console.log(event)
+    })
+
+    return () => playerListener.remove()
+  }, [])
 
   return (
     <View style={styles.container}>

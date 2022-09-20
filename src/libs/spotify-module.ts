@@ -1,9 +1,12 @@
-import { NativeModules } from 'react-native';
+import { NativeEventEmitter, NativeModules } from 'react-native';
 const { SpotifyModule } = NativeModules;
 
 interface SpotifyInterface {
   authenticate: () => Promise<string>;
-  createSpotifyEvent: (name: string, location: string) => void;
+  subscribeToPlayerState: () => void;
+  unsubscribeToPlayerState: () => void;
 }
+
+export const SpotifyEventListener = () => new NativeEventEmitter(SpotifyModule)
 
 export default SpotifyModule as SpotifyInterface;
