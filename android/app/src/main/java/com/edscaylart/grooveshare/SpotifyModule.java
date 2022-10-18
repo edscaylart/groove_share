@@ -51,12 +51,11 @@ public class SpotifyModule extends ReactContextBaseJavaModule {
                 switch (response.getType()) {
                     // Response was successful and contains auth token
                     case TOKEN:
-//                        editor = getSharedPreferences("SPOTIFY", 0).edit();
-//                        editor.putString("token", response.getAccessToken());
                         Log.d("STARTING", "GOT AUTH TOKEN");
-//                        editor.apply();
-//                    waitForUserInfo();
-                        mAuthPromise.resolve(response.getAccessToken());
+                        WritableMap params = Arguments.createMap();
+                        params.putString("token", response.getAccessToken());
+                        params.putInt("expiresIn", response.getExpiresIn());
+                        mAuthPromise.resolve(params);
                         break;
 
                     // Auth flow returned an error
@@ -160,11 +159,12 @@ public class SpotifyModule extends ReactContextBaseJavaModule {
                 .setEventCallback(playerState -> {
                     final Track track = playerState.track;
                     if (track != null) {
-
                         WritableMap params = Arguments.createMap();
+                        params.putString("uri", track.uri);
                         params.putString("song", track.name);
                         params.putString("artist", track.artist.name);
                         params.putString("imageUri", track.imageUri.toString());
+                        params.putString("imageUriRaw", track.imageUri.raw);
 
                         sendEvent(getReactApplicationContext(), "PlayerState", params);
                         Log.d("MainActivity", track.name + " by " + track.artist.name);

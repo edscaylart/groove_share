@@ -1,8 +1,19 @@
 import { NativeEventEmitter, NativeModules } from 'react-native';
 const { SpotifyModule } = NativeModules;
 
+export interface SpotifyPlayerState {
+  uri: string;
+  song: string;
+  artist: string;
+  imageUri: string;
+  imageUriRaw: string;
+}
+
 interface SpotifyInterface {
-  authenticate: () => Promise<string>;
+  authenticate: () => Promise<{
+    token: string;
+    expiresIn: number;
+  }>;
   subscribeToPlayerState: () => void;
   unsubscribeToPlayerState: () => void;
 }
